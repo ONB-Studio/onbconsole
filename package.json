@@ -9,17 +9,25 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "next": "15.4.1"
+    "next": "15.4.1",
+    "next-auth": "^4.24.11",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "@next-auth/supabase-adapter": "0.2.1",
+    "@supabase/supabase-js": "^2.51.0",
+    "@google-analytics/data": "^4.4.0",
+    "@google/generative-ai": "^0.15.0",
+    "googleapis": "^140.0.1",
+    "pg": "^8.12.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.4.1",
-    "@eslint/eslintrc": "^3"
+    "@types/pg": "^8.11.6",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.5",
+    "typescript": "^5"
   }
 }

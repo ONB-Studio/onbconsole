@@ -1,0 +1,11 @@
+// src/app/page.tsx
+import AuthButton from "@/components/AuthButton";
+
+export default function Home() {
+  return (
+    <main>
+      <h1>Auth.js & Supabase 테스트</h1>
+      <AuthButton />
+    </main>
+  );
+}
