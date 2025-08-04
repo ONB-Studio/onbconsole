@@ -1,42 +1,46 @@
 // src/app/api/sites/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/pg';
-import { auth } from '@/lib/auth'; // 인증을 위한 auth 함수 임포트
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import pool from '@/lib/pg';
 
-export async function GET(req: NextRequest) {
-  const session = await auth();
+export async function GET() {
+  const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: '인증되지 않은 사용자입니다.' }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const result = await query('SELECT id, title, domain, created_at FROM sites WHERE user_id = $1 ORDER BY created_at DESC', [session.user.id]);
-    return NextResponse.json({ data: result.rows });
-  } catch (e: any) {
-    console.error('사이트 조회 실패:', e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    const result = await pool.query(
+      'SELECT * FROM next_auth.sites WHERE user_id = $1 ORDER BY created_at DESC',
+      [session.user.id]
+    );
+    return NextResponse.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching sites:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-export async function POST(req: NextRequest) {
-  const session = await auth();
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: '인증되지 않은 사용자입니다.' }, { status: 401 });
-  }
-
-  const { title, domain } = await req.json();
-  if (!title || !domain) {
-    return NextResponse.json({ error: '제목과 도메인은 필수입니다.' }, { status: 400 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const result = await query(
-      'INSERT INTO sites (user_id, title, domain) VALUES ($1, $2, $3) RETURNING id, title, domain, created_at',
-      [session.user.id, title, domain]
+    const { siteUrl } = await req.json();
+    if (!siteUrl) {
+      return NextResponse.json({ error: 'Site URL is required' }, { status: 400 });
+    }
+
+    const result = await pool.query(
+      'INSERT INTO next_auth.sites (user_id, site_url) VALUES ($1, $2) RETURNING *',
+      [session.user.id, siteUrl]
     );
-    return NextResponse.json({ data: result.rows[0] }, { status: 201 });
-  } catch (e: any) {
-    console.error('사이트 추가 실패:', e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.json(result.rows[0], { status: 201 });
+  } catch (error) {
+    console.error('Error creating site:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

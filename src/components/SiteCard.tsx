@@ -1,21 +1,27 @@
 // src/components/SiteCard.tsx
-'use client';
+"use client";
 
-import React from 'react';
+import { Site } from '@/hooks/useSites';
+import styles from '@/app/page.module.css';
 
-type SiteCardProps = {
-  id: string;
-  title: string;
-  domain: string;
-  onDelete: (id: string) => void;
-};
-
-export default function SiteCard({ id, title, domain, onDelete }: SiteCardProps) {
-  return (
-    <div className="site-card">
-      <h3>{title}</h3>
-      <span>{domain}</span>
-      <button onClick={() => onDelete(id)}>삭제</button>
-    </div>
-  );
+// SiteCard가 받을 데이터의 타입을 정의합니다.
+interface SiteCardProps {
+    site: Site;
 }
+
+// props로 site 객체를 받도록 수정합니다.
+export default function SiteCard({ site }: SiteCardProps) {
+    const handleSync = async () => {
+        alert(`Syncing data for ${site.site_url}`);
+        // Add actual sync logic here
+    };
+
+    return (
+        <div className={styles.card}>
+            <h2>{site.site_url}</h2>
+            <p>Added on: {new Date(site.created_at).toLocaleDateString()}</p>
+            <button onClick={handleSync}>Sync GSC Data</button>
+        </div>
+    );
+}
+

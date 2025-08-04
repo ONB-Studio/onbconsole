@@ -1,117 +1,107 @@
 // src/app/page.tsx
-'use client';
+"use client";
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
-import { useSites } from '@/hooks/useSites';
-import AuthStatus from '@/components/AuthStatus';
-import AddSiteForm from '@/components/AddSiteForm';
-import SiteList from '@/components/SiteList';
+import { useSession } from "next-auth/react";
+import AuthStatus from "@/components/AuthStatus";
+import SiteList from "@/components/SiteList";
+import styles from "./page.module.css";
+import AddSiteForm from "@/components/AddSiteForm";
+import useSites, { Site } from "@/hooks/useSites";
 import AIFeedback from '@/components/AIFeedback';
-import ModalBase from '@/components/ModalBase';
 
-export default function Page() {
+export default function Home() {
   const { data: session, status } = useSession();
-  const { sites, isLoading, error, addSite, deleteSite, refetchSites } = useSites();
+  const { sites, isLoading: sitesLoading, error: sitesError, mutate: mutateSites } = useSites();
+  
+  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
+  const [metrics, setMetrics] = useState<any[]>([]);
+  const [aiFeedback, setAiFeedback] = useState('');
+  const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
 
-  // 모달 상태 관리
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-
-  // 모달 내용 관리
-  const [history, setHistory] = useState<any[]>([]);
-  const [siteToDelete, setSiteToDelete] = useState<string | null>(null);
-
-  // 이력 보기 버튼 클릭 핸들러
-  const handleShowHistory = async () => {
-    // 실제 이력 fetch 로직
-    const res = await fetch('/api/metrics/history');
-    const json = await res.json();
-    setHistory(json.data || []);
-    setIsHistoryModalOpen(true); // 이력 모달을 켭니다.
+  const handleSiteSelect = async (site: Site) => {
+    setSelectedSite(site);
+    setAiFeedback(''); // Reset feedback when a new site is selected
+    
+    // Fetch metrics for the selected site
+    const res = await fetch(`/api/metrics/history?siteId=${site.id}`);
+    const data = await res.json();
+    setMetrics(data);
   };
 
-  // 사이트 삭제 버튼 클릭 핸들러 (SiteList에서 호출)
-  const handleDeleteRequest = (id: string) => {
-    setSiteToDelete(id); // 삭제할 사이트 ID 저장
-    setIsConfirmModalOpen(true); // 삭제 확인 모달을 켭니다.
-  };
+  const getAIFeedback = async () => {
+    if (!selectedSite || metrics.length === 0) return;
 
-  // 최종 삭제 실행 핸들러 (모달의 '확인' 버튼에서 호출)
-  const handleConfirmDelete = async () => {
-    if (siteToDelete) {
-      await deleteSite(siteToDelete);
-      setSiteToDelete(null); // ID 초기화
-      setIsConfirmModalOpen(false); // 모달 닫기
+    setIsFeedbackLoading(true);
+    try {
+      // (✨ 수정) /api/feedback 대신 /api/gemini를 호출합니다.
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metrics }),
+      });
+      const data = await response.json();
+      setAiFeedback(data.feedback);
+    } catch (error) {
+      console.error("Failed to get AI feedback", error);
+      setAiFeedback("죄송합니다. 지금은 피드백을 생성할 수 없습니다.");
+    } finally {
+      setIsFeedbackLoading(false);
     }
   };
 
-  // 삭제 취소 핸들러
-  const handleCancelDelete = () => {
-    setSiteToDelete(null);
-    setIsConfirmModalOpen(false);
-  };
+  if (status === "loading") {
+    return <main className={styles.main}><p>세션 정보를 불러오는 중...</p></main>;
+  }
 
-  if (status !== 'authenticated') {
+  if (!session) {
     return (
-      <div>
-        <AuthStatus />
-        <p>서비스를 이용하려면 로그인이 필요합니다.</p>
-      </div>
+      <main className={styles.main}>
+        <div className={styles.description}>
+          <p>
+            환영합니다! 계속하려면 로그인해주세요.
+          </p>
+          <div>
+            <AuthStatus />
+          </div>
+        </div>
+      </main>
     );
   }
 
   return (
-    <div>
-      <AuthStatus />
+    <main className={styles.main}>
+      <header className={styles.header}>
+        <h1>My Dashboard</h1>
+        <AuthStatus />
+      </header>
+      
+      <AddSiteForm onSiteAdded={mutateSites} />
+      
+      <SiteList sites={sites} isLoading={sitesLoading} error={sitesError} />
 
-      <h2>내 사이트</h2>
-      <AddSiteForm onAddSite={addSite} />
-      <button onClick={refetchSites} disabled={isLoading}>
-        {isLoading ? '새로고침 중...' : '사이트 새로고침'}
-      </button>
-      <button onClick={handleShowHistory}>이력 보기</button>
-
-      <SiteList
-        sites={sites}
-        isLoading={isLoading}
-        error={error}
-        onDelete={handleDeleteRequest} // 삭제 요청 핸들러 연결
-      />
-
-      <hr style={{ margin: '32px 0' }} />
-      <AIFeedback />
-
-      {/* 범용 모달을 사용한 "삭제 확인" 모달 */}
-      <ModalBase isOpen={isConfirmModalOpen} onClose={handleCancelDelete}>
-        <div style={{ padding: '20px' }}>
-          <h3>사이트 삭제</h3>
-          <p>정말 이 사이트를 삭제하시겠습니까? 관련 데이터가 모두 사라집니다.</p>
-          <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-            <button onClick={handleCancelDelete}>취소</button>
-            <button onClick={handleConfirmDelete} style={{ background: 'red', color: 'white' }}>삭제</button>
-          </div>
+      <div className={styles.detailsSection}>
+        <h2>사이트 상세 정보</h2>
+        <p>위 목록에서 사이트를 선택하여 상세 지표를 확인하고 AI 분석을 받아보세요.</p>
+        <div>
+          {sites.map(site => (
+            <button key={site.id} onClick={() => handleSiteSelect(site)} className={selectedSite?.id === site.id ? styles.selected : ''}>
+              {site.site_url}
+            </button>
+          ))}
         </div>
-      </ModalBase>
 
-      {/* 범용 모달을 사용한 "이력 보기" 모달 */}
-      <ModalBase isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)}>
-        <div style={{ padding: '20px', width: '500px' }}>
-          <h3>데이터 수집 이력</h3>
-          {history.length > 0 ? (
-            <ul>
-              {history.map((item, index) => (
-                <li key={index}>{item.log}</li>
-              ))}
-            </ul>
-          ) : (
-            <p>이력이 없습니다.</p>
-          )}
-          <div style={{ marginTop: '20px', textAlign: 'right' }}>
-            <button onClick={() => setIsHistoryModalOpen(false)}>닫기</button>
+        {selectedSite && (
+          <div>
+            <h3>{selectedSite.site_url} 지표</h3>
+            <button onClick={getAIFeedback} disabled={isFeedbackLoading || metrics.length === 0}>
+              {metrics.length === 0 ? '분석할 지표 없음' : 'AI 분석 받기'}
+            </button>
+            <AIFeedback feedback={aiFeedback} isLoading={isFeedbackLoading} />
+            <pre>{JSON.stringify(metrics, null, 2)}</pre>
           </div>
-        </div>
-      </ModalBase>
-    </div>
+        )}
+      </div>
+    </main>
   );
 }

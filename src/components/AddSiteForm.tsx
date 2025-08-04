@@ -1,47 +1,58 @@
 // src/components/AddSiteForm.tsx
-'use client';
-
+"use client";
 import { useState } from 'react';
+import styles from '@/app/page.module.css';
 
-type AddSiteFormProps = {
-  onAddSite: (title: string, domain: string) => Promise<void>;
-};
+interface AddSiteFormProps {
+  onSiteAdded: () => void;
+}
 
-export default function AddSiteForm({ onAddSite }: AddSiteFormProps) {
-  const [title, setTitle] = useState('');
-  const [domain, setDomain] = useState('');
+export default function AddSiteForm({ onSiteAdded }: AddSiteFormProps) {
+  const [siteUrl, setSiteUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !domain) {
-      alert('별칭과 도메인을 모두 입력하세요!');
+    if (!siteUrl) {
+      setError('Please enter a site URL.');
       return;
     }
     setIsSubmitting(true);
-    await onAddSite(title, domain);
-    setTitle('');
-    setDomain('');
-    setIsSubmitting(false);
+    setError('');
+
+    try {
+      const response = await fetch('/api/sites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ siteUrl }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add site.');
+      }
+      setSiteUrl('');
+      onSiteAdded(); // Re-fetch the sites list
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ margin: '16px 0' }}>
+    <form onSubmit={handleSubmit} className={styles.addSiteForm}>
       <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="사이트 별칭"
-        disabled={isSubmitting}
-      />
-      <input
-        value={domain}
-        onChange={(e) => setDomain(e.target.value)}
+        type="text"
+        value={siteUrl}
+        onChange={(e) => setSiteUrl(e.target.value)}
         placeholder="https://example.com"
         disabled={isSubmitting}
       />
       <button type="submit" disabled={isSubmitting}>
-        {isSubmitting ? '추가 중...' : '사이트 추가'}
+        {isSubmitting ? 'Adding...' : 'Add Site'}
       </button>
+      {error && <p className={styles.error}>{error}</p>}
     </form>
   );
 }

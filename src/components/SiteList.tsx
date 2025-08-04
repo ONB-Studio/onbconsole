@@ -1,37 +1,31 @@
 // src/components/SiteList.tsx
-'use client';
-
 import SiteCard from './SiteCard';
+import styles from '@/app/page.module.css';
 import { Site } from '@/hooks/useSites';
 
-type SiteListProps = {
+interface SiteListProps {
   sites: Site[];
   isLoading: boolean;
-  error: string | null;
-  onDelete: (id: string) => void;
-};
+  error: Error | null;
+}
 
-export default function SiteList({ sites, isLoading, error, onDelete }: SiteListProps) {
+export default function SiteList({ sites, isLoading, error }: SiteListProps) {
   if (isLoading) {
-    return <div>사이트 목록을 불러오는 중...</div>;
+    return <p>Loading sites...</p>;
   }
 
   if (error) {
-    return <div style={{ color: 'red' }}>에러: {error}</div>;
+    return <p className={styles.error}>Error loading sites: {error.message}</p>;
   }
 
   if (sites.length === 0) {
-    return <div>등록된 사이트가 없습니다. 새 사이트를 추가해보세요.</div>;
+    return <p>No sites added yet. Add one above to get started!</p>;
   }
 
   return (
-    <div>
+    <div className={styles.grid}>
       {sites.map((site) => (
-        <SiteCard
-          key={site.id}
-          {...site}
-          onDelete={() => onDelete(site.id)}
-        />
+        <SiteCard key={site.id} site={site} />
       ))}
     </div>
   );

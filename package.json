@@ -4,21 +4,23 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "NODE_OPTIONS='--max-old-space-size=2048' next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
-    "next": "15.4.1",
-    "next-auth": "^4.24.11",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "@next-auth/supabase-adapter": "0.2.1",
-    "@supabase/supabase-js": "^2.51.0",
     "@google-analytics/data": "^4.4.0",
     "@google/generative-ai": "^0.15.0",
+    "@next-auth/supabase-adapter": "^0.2.1",
+    "@radix-ui/react-dialog": "^1.1.14",
+    "@supabase/supabase-js": "^2.51.0",
     "googleapis": "^140.0.1",
+    "next": "14.2.30",
+    "next-auth": "4.24.7",
     "pg": "^8.12.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-markdown": "^10.1.0",
     "server-only": "^0.0.1"
   },
   "devDependencies": {
@@ -27,7 +29,8 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "eslint": "^8",
-    "eslint-config-next": "14.2.5",
+    "eslint-config-next": "14.2.30",
     "typescript": "^5"
   }
 }
+

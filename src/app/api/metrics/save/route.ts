@@ -1,28 +1,43 @@
 // src/app/api/metrics/save/route.ts
-import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/pg'; // PostgreSQL 쿼리 유틸리티 임포트
-import { auth } from '@/lib/auth'; // 인증을 위한 auth 함수 임포트
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import pool from '@/lib/pg';
 
-export async function POST(req: NextRequest) {
-  const session = await auth();
+export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return NextResponse.json({ error: '인증되지 않은 사용자입니다.' }, { status: 401 });
-  }
-
-  const { siteId, date, gscData } = await req.json();
-
-  if (!siteId || !date || !gscData) {
-    return NextResponse.json({ error: '사이트 ID, 날짜, GSC 데이터는 필수입니다.' }, { status: 400 });
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const result = await query(
-      'INSERT INTO metrics_history (site_id, date, gsc) VALUES ($1, $2, $3) ON CONFLICT (site_id, date) DO UPDATE SET gsc = EXCLUDED.gsc, created_at = NOW() RETURNING id, site_id, date, gsc, created_at',
-      [siteId, date, gscData]
+    const { site_id, date, clicks, impressions, ctr, position } = await req.json();
+
+    // 필수 데이터 검증
+    if (!site_id || !date) {
+      return NextResponse.json({ error: 'site_id and date are required' }, { status: 400 });
+    }
+    
+    // 요청한 사용자가 해당 사이트의 소유자인지 확인 (보안)
+    const siteCheck = await pool.query(
+      'SELECT id FROM next_auth.sites WHERE id = $1 AND user_id = $2',
+      [site_id, session.user.id]
     );
-    return NextResponse.json({ data: result.rows[0] }, { status: 201 });
-  } catch (e: any) {
-    console.error('지표 저장 실패:', e);
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    if (siteCheck.rowCount === 0) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // 데이터베이스에 지표 삽입
+    const result = await pool.query(
+      `INSERT INTO next_auth.metrics (site_id, date, clicks, impressions, ctr, position)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [site_id, date, clicks, impressions, ctr, position]
+    );
+
+    return NextResponse.json(result.rows[0], { status: 201 });
+  } catch (error) {
+    console.error('Error saving metrics:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

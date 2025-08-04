@@ -1,14 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+// src/app/api/sites/[id]/route.ts
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import pool from '@/lib/pg';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+type DeleteContext = {
+  params: {
+    id: string;
+  };
+};
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const id = params.id;
-  const { data, error } = await supabase.from('sites').delete().eq('id', id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true });
+export async function DELETE(
+  req: Request,
+  context: DeleteContext
+) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id } = context.params;
+
+  try {
+    const result = await pool.query(
+      'DELETE FROM next_auth.sites WHERE id = $1 AND user_id = $2',
+      [id, session.user.id]
+    );
+
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: 'Site not found or user not authorized' }, { status: 404 });
+    }
+
+    return NextResponse.json({ message: 'Site deleted successfully' }, { status: 200 });
+  } catch (error) {
+    console.error('Error deleting site:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
 }
