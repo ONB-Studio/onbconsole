@@ -1,107 +1,125 @@
 // src/app/page.tsx
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import AuthStatus from "@/components/AuthStatus";
-import SiteList from "@/components/SiteList";
-import styles from "./page.module.css";
-import AddSiteForm from "@/components/AddSiteForm";
-import useSites, { Site } from "@/hooks/useSites";
-import AIFeedback from '@/components/AIFeedback';
+import SiteCard from "@/components/SiteCard";
+import HistoryModal from "@/components/HistoryModal";
 
-export default function Home() {
-  const { data: session, status } = useSession();
-  const { sites, isLoading: sitesLoading, error: sitesError, mutate: mutateSites } = useSites();
-  
-  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
-  const [metrics, setMetrics] = useState<any[]>([]);
-  const [aiFeedback, setAiFeedback] = useState('');
-  const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
+export default function Page() {
+  const { data: session } = useSession();
+  const [sites, setSites] = useState<any[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [siteTitle, setSiteTitle] = useState("");
+  const [siteDomain, setSiteDomain] = useState("");
 
-  const handleSiteSelect = async (site: Site) => {
-    setSelectedSite(site);
-    setAiFeedback(''); // Reset feedback when a new site is selected
-    
-    // Fetch metrics for the selected site
-    const res = await fetch(`/api/metrics/history?siteId=${site.id}`);
-    const data = await res.json();
-    setMetrics(data);
+  // 사이트 리스트 불러오기
+  const fetchSites = async () => {
+    const res = await fetch("/api/sites");
+    const json = await res.json();
+    setSites(json.data || []);
   };
 
-  const getAIFeedback = async () => {
-    if (!selectedSite || metrics.length === 0) return;
+  // 이력 불러오기
+  const fetchHistory = async () => {
+    const res = await fetch("/api/metrics/history");
+    const json = await res.json();
+    setHistory(json.data || []);
+  };
 
-    setIsFeedbackLoading(true);
-    try {
-      // (✨ 수정) /api/feedback 대신 /api/gemini를 호출합니다.
-      const response = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metrics }),
-      });
-      const data = await response.json();
-      setAiFeedback(data.feedback);
-    } catch (error) {
-      console.error("Failed to get AI feedback", error);
-      setAiFeedback("죄송합니다. 지금은 피드백을 생성할 수 없습니다.");
-    } finally {
-      setIsFeedbackLoading(false);
+  // 로그인 후 사이트, 유저, 이력 fetch
+  useEffect(() => {
+    if (session) {
+      fetchSites();
+      fetchHistory();
     }
+  }, [session]);
+
+  // 사이트 추가
+  const handleAddSite = async () => {
+    if (!siteTitle || !siteDomain) return alert("별칭/도메인 입력!");
+    await fetch("/api/sites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: siteTitle, domain: siteDomain }),
+    });
+    setSiteTitle("");
+    setSiteDomain("");
+    fetchSites();
   };
 
-  if (status === "loading") {
-    return <main className={styles.main}><p>세션 정보를 불러오는 중...</p></main>;
-  }
+  // 사이트 삭제
+  const handleDeleteSite = async (id: string) => {
+    await fetch(`/api/sites/${id}`, { method: "DELETE" });
+    fetchSites();
+  };
 
-  if (!session) {
-    return (
-      <main className={styles.main}>
-        <div className={styles.description}>
-          <p>
-            환영합니다! 계속하려면 로그인해주세요.
-          </p>
-          <div>
-            <AuthStatus />
-          </div>
-        </div>
-      </main>
-    );
-  }
+  // 지표 수정 or 동기화 (예시/더미)
+  const handleUpdateData = async (
+    site_id: string,
+    group: string,
+    key: string,
+    value: number
+  ) => {
+    await fetch("/api/metrics/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        site_id,
+        date: new Date().toISOString().slice(0, 10),
+        [group]: { [key]: value },
+      }),
+    });
+    fetchHistory();
+  };
 
   return (
-    <main className={styles.main}>
-      <header className={styles.header}>
-        <h1>My Dashboard</h1>
-        <AuthStatus />
-      </header>
-      
-      <AddSiteForm onSiteAdded={mutateSites} />
-      
-      <SiteList sites={sites} isLoading={sitesLoading} error={sitesError} />
-
-      <div className={styles.detailsSection}>
-        <h2>사이트 상세 정보</h2>
-        <p>위 목록에서 사이트를 선택하여 상세 지표를 확인하고 AI 분석을 받아보세요.</p>
-        <div>
-          {sites.map(site => (
-            <button key={site.id} onClick={() => handleSiteSelect(site)} className={selectedSite?.id === site.id ? styles.selected : ''}>
-              {site.site_url}
-            </button>
-          ))}
-        </div>
-
-        {selectedSite && (
-          <div>
-            <h3>{selectedSite.site_url} 지표</h3>
-            <button onClick={getAIFeedback} disabled={isFeedbackLoading || metrics.length === 0}>
-              {metrics.length === 0 ? '분석할 지표 없음' : 'AI 분석 받기'}
-            </button>
-            <AIFeedback feedback={aiFeedback} isLoading={isFeedbackLoading} />
-            <pre>{JSON.stringify(metrics, null, 2)}</pre>
-          </div>
-        )}
+    <div>
+      <AuthStatus />
+      {/* 사이트 추가 폼 */}
+      <div style={{ margin: "16px 0" }}>
+        <input
+          value={siteTitle}
+          onChange={(e) => setSiteTitle(e.target.value)}
+          placeholder="사이트 별칭"
+        />
+        <input
+          value={siteDomain}
+          onChange={(e) => setSiteDomain(e.target.value)}
+          placeholder="사이트 도메인"
+        />
+        <button onClick={handleAddSite}>사이트 추가</button>
       </div>
-    </main>
+      <button onClick={fetchSites}>사이트 새로고침</button>
+      <button
+        onClick={() => {
+          fetchHistory();
+          setShowHistory(true);
+        }}
+      >
+        이력 보기
+      </button>
+      {/* 사이트 카드 리스트 */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "16px" }}>
+        {sites.map((site) => (
+          <SiteCard
+            key={site.id}
+            {...site}
+            onDelete={handleDeleteSite}
+            onUpdateData={(group, key, value) =>
+              handleUpdateData(site.id, group, key, value)
+            }
+            // onSyncGSC, onSyncGA4, onSyncAds 등 추후 구현
+          />
+        ))}
+      </div>
+      {/* 이력 모달 */}
+      {showHistory && (
+        <HistoryModal history={history} onClose={() => setShowHistory(false)} />
+      )}
+    </div>
   );
 }
+
